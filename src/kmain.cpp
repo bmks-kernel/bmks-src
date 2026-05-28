@@ -61,12 +61,16 @@ void log_info(const char* msg) {
     vga::print("\n");
 }
 
+#include "multiboot.h"
+
 void init_gdt();
 void init_idt();
 void pic_remap();
 void init_timer(uint32_t freq);
+void pmm_init(uint32_t mem_size_kb);
+void* pmm_alloc_block();
 
-extern "C" void kmain(uint32_t magic, uint32_t) {
+extern "C" void kmain(uint32_t magic, multiboot_info* mb_info) {
     vga::clear();
     log_info("bmks: early boot initialized");
     
@@ -83,12 +87,26 @@ extern "C" void kmain(uint32_t magic, uint32_t) {
     pic_remap();
     init_timer(100); 
     
+    
+    uint32_t total_memory_kb = mb_info->mem_lower + mb_info->mem_upper;
+    
+    
+    vga::print("["); vga::print_num(timer_ticks); vga::print("] ");
+    vga::print("ram: detected "); vga::print_num(total_memory_kb / 1024); vga::print(" MB\n");
+    
+    
+    pmm_init(total_memory_kb);
+    
+    
+    void* ptr = pmm_alloc_block();
+    if (ptr) {
+        log_info("pmm: successfully allocated 4KB physical block");
+    }
+    
     __asm__ __volatile__("sti");
     log_info("cpu: hardware interrupts unmasked");
     log_info("ps2: keyboard initialized");
-    
-    vga::print("\nType something: ");
-    
+    log_info("bmks: entering idle state");
     
     while (true) {
         __asm__ __volatile__("hlt");
