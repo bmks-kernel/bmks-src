@@ -71,3 +71,16 @@ irq1_stub:
     call keyboard_handler
     popad
     iretd
+
+
+
+global page_fault_stub
+extern page_fault_handler
+
+page_fault_stub:
+    pushad
+    cld
+    call page_fault_handler
+    popad
+    add esp, 4
+    iretd

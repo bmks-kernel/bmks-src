@@ -14,7 +14,7 @@ add_custom_command(
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/boot.asm
 )
 
-add_executable(bmks.bin ${CMAKE_CURRENT_BINARY_DIR}/boot.o src/kmain.cpp src/gdt.cpp src/idt.cpp src/pic.cpp src/timer.cpp src/keyboard.cpp src/pmm.cpp src/paging.cpp)
+add_executable(bmks.bin ${CMAKE_CURRENT_BINARY_DIR}/boot.o src/kmain.cpp src/gdt.cpp src/idt.cpp src/pic.cpp src/timer.cpp src/keyboard.cpp src/pmm.cpp src/paging.cpp src/vmm.cpp)
 
 # Added -no-pie to linker flags
 set_target_properties(bmks.bin PROPERTIES LINK_FLAGS "-m32 -nostdlib -no-pie -T ${CMAKE_SOURCE_DIR}/linker.ld")

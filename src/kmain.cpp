@@ -52,6 +52,21 @@ namespace vga {
             print_char(buf[--i]);
         }
     }
+
+    void print_hex(uint32_t num) {
+        print("0x");
+        if (num == 0) { print_char('0'); return; }
+        const char* hex_chars = "0123456789ABCDEF";
+        char buf[8];
+        int i = 0;
+        while (num > 0 && i < 8) {
+            buf[i++] = hex_chars[num & 0x0F];
+            num >>= 4;
+        }
+        while (i > 0) {
+            print_char(buf[--i]);
+        }
+    }
 }
 
 void log_info(const char* msg) {
@@ -68,6 +83,7 @@ void pic_remap();
 void init_timer(uint32_t freq);
 void pmm_init(uint32_t mem_size_kb);
 void* pmm_alloc_block();
+void vmm_map_page(uint32_t phys, uint32_t virt);
 
 extern "C" void kmain(uint32_t magic, multiboot_info* mb_info) {
     vga::clear();
@@ -77,33 +93,35 @@ extern "C" void kmain(uint32_t magic, multiboot_info* mb_info) {
         log_info("panic: invalid multiboot magic number");
         return;
     }
-    log_info("multiboot: magic ok");
     
     init_gdt();
-    log_info("cpu: GDT loaded");
-    
     init_idt();
     pic_remap();
     init_timer(100); 
     
     uint32_t total_memory_kb = mb_info->mem_lower + mb_info->mem_upper;
-    
-    vga::print("["); vga::print_num(timer_ticks); vga::print("] ");
-    vga::print("ram: detected "); vga::print_num(total_memory_kb / 1024); vga::print(" MB\n");
-    
     pmm_init(total_memory_kb);
-    
-    void* ptr = pmm_alloc_block();
-    if (ptr) {
-        log_info("pmm: successfully allocated 4KB physical block");
-    }
-
     init_paging();
     
     __asm__ __volatile__("sti");
     log_info("cpu: hardware interrupts unmasked");
-    log_info("ps2: keyboard initialized");
-    log_info("bmks: entering idle state");
+    
+    void* phys_block = pmm_alloc_block();
+    uint32_t virt_addr = 0x10000000;
+    
+    vmm_map_page((uint32_t)phys_block, virt_addr);
+    log_info("vmm: mapped 0x10000000 to physical block");
+    
+    uint32_t* test_ptr = (uint32_t*)virt_addr;
+    *test_ptr = 0xDEADBEEF;
+    
+    if (*test_ptr == 0xDEADBEEF) {
+        log_info("vmm: read/write test successful");
+    }
+
+    log_info("bmks: triggering deliberate page fault...");
+    uint32_t* bad_ptr = (uint32_t*)0x20000000;
+    *bad_ptr = 0xBAD; 
     
     while (true) {
         __asm__ __volatile__("hlt");
