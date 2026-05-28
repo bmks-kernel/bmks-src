@@ -2,6 +2,7 @@
 
 extern void log_info(const char* msg);
 extern "C" void default_isr_stub();
+extern "C" void irq0_stub();
 
 struct idt_entry {
     uint16_t isr_low;
@@ -20,7 +21,7 @@ __attribute__((aligned(0x10))) idt_entry idt[256];
 idtr idtr_reg;
 
 extern "C" void isr_handler() {
-    log_info("cpu: interrupt triggered");
+    log_info("cpu: unhandled exception");
 }
 
 void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags) {
@@ -40,6 +41,7 @@ void init_idt() {
         idt_set_descriptor(vector, (void*)default_isr_stub, 0x8E);
     }
 
+    idt_set_descriptor(0x20, (void*)irq0_stub, 0x8E);
+
     __asm__ __volatile__("lidt %0" : : "m"(idtr_reg));
-    __asm__ __volatile__("sti");
 }

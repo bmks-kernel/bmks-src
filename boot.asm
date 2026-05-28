@@ -36,3 +36,27 @@ _start:
 .hang:
     hlt
     jmp .hang
+
+
+
+    global default_isr_stub
+extern isr_handler
+
+default_isr_stub:
+    pushad
+    cld
+    call isr_handler
+    popad
+    iretd
+
+
+
+global irq0_stub
+extern timer_handler
+
+irq0_stub:
+    pushad
+    cld
+    call timer_handler
+    popad
+    iretd
