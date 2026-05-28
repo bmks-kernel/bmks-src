@@ -1,5 +1,7 @@
 #include <stdint.h>
 #include <stddef.h>
+#include "multiboot.h"
+#include "paging.h"
 
 extern volatile uint32_t timer_ticks;
 
@@ -20,7 +22,6 @@ namespace vga {
         if (c == '\n') {
             cursor = (cursor / VGA_WIDTH + 1) * VGA_WIDTH;
         } else if (c == '\b') {
-            // Handle backspace
             if (cursor > 0) {
                 cursor--;
                 buffer[cursor] = (uint16_t)' ' | (7 << 8);
@@ -61,8 +62,6 @@ void log_info(const char* msg) {
     vga::print("\n");
 }
 
-#include "multiboot.h"
-
 void init_gdt();
 void init_idt();
 void pic_remap();
@@ -87,21 +86,19 @@ extern "C" void kmain(uint32_t magic, multiboot_info* mb_info) {
     pic_remap();
     init_timer(100); 
     
-    
     uint32_t total_memory_kb = mb_info->mem_lower + mb_info->mem_upper;
-    
     
     vga::print("["); vga::print_num(timer_ticks); vga::print("] ");
     vga::print("ram: detected "); vga::print_num(total_memory_kb / 1024); vga::print(" MB\n");
     
-    
     pmm_init(total_memory_kb);
-    
     
     void* ptr = pmm_alloc_block();
     if (ptr) {
         log_info("pmm: successfully allocated 4KB physical block");
     }
+
+    init_paging();
     
     __asm__ __volatile__("sti");
     log_info("cpu: hardware interrupts unmasked");
