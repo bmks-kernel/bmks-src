@@ -60,3 +60,14 @@ irq0_stub:
     call timer_handler
     popad
     iretd
+
+
+global irq1_stub
+extern keyboard_handler
+
+irq1_stub:
+    pushad
+    cld
+    call keyboard_handler
+    popad
+    iretd

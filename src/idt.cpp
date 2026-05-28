@@ -3,6 +3,7 @@
 extern void log_info(const char* msg);
 extern "C" void default_isr_stub();
 extern "C" void irq0_stub();
+extern "C" void irq1_stub(); // Keyboard stub
 
 struct idt_entry {
     uint16_t isr_low;
@@ -41,7 +42,8 @@ void init_idt() {
         idt_set_descriptor(vector, (void*)default_isr_stub, 0x8E);
     }
 
-    idt_set_descriptor(0x20, (void*)irq0_stub, 0x8E);
+    idt_set_descriptor(0x20, (void*)irq0_stub, 0x8E); // Timer
+    idt_set_descriptor(0x21, (void*)irq1_stub, 0x8E); // Keyboard
 
     __asm__ __volatile__("lidt %0" : : "m"(idtr_reg));
 }
