@@ -1,0 +1,38 @@
+MBALIGN  equ  1 << 0
+MEMINFO  equ  1 << 1
+FLAGS    equ  MBALIGN | MEMINFO
+MAGIC    equ  0x1BADB002
+CHECKSUM equ -(MAGIC + FLAGS)
+
+section .multiboot
+align 4
+    dd MAGIC
+    dd FLAGS
+    dd CHECKSUM
+
+section .bss
+align 16
+stack_bottom:
+    resb 16384 ; 16KB stack
+stack_top:
+
+section .text
+bits 32 ; enforce 32-bit mode
+global _start
+extern kmain
+
+_start:
+    ; setup stack pointer
+    mov esp, stack_top
+    
+    ; pass multiboot magic and info structure to c++
+    push ebx
+    push eax
+    
+    call kmain
+
+    ; halt cpu if kmain returns
+    cli
+.hang:
+    hlt
+    jmp .hang
