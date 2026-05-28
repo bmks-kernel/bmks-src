@@ -1,11 +1,14 @@
 import os
 import subprocess
 import sys
+import shutil
 
 def main():
     build_dir = "build"
-    if not os.path.exists(build_dir):
-        os.mkdir(build_dir)
+    
+    if os.path.exists(build_dir):
+        shutil.rmtree(build_dir)
+    os.mkdir(build_dir)
     
     cmake_res = subprocess.run(["cmake", "-S", ".", "-B", build_dir])
     if cmake_res.returncode != 0:
