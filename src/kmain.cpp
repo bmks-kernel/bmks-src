@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include "multiboot.h"
 #include "paging.h"
+#include "task.h"
 
 extern volatile uint32_t timer_ticks;
 
@@ -77,22 +78,42 @@ void log_info(const char* msg) {
     vga::print("\n");
 }
 
+void delay(uint32_t ticks) {
+    uint32_t start = timer_ticks;
+    while (timer_ticks < start + ticks) {
+        __asm__ __volatile__("hlt");
+    }
+}
+
 void init_gdt();
 void init_idt();
 void pic_remap();
 void init_timer(uint32_t freq);
 void pmm_init(uint32_t mem_size_kb);
-void* pmm_alloc_block();
-void vmm_map_page(uint32_t phys, uint32_t virt);
+
+extern task_t tasks[2];
+
+void task1() {
+    while (true) {
+        log_info("Task 1 is running");
+        delay(50); 
+        task_yield();
+    }
+}
+
+void task2() {
+    while (true) {
+        log_info("Task 2 is running");
+        delay(50); 
+        task_yield();
+    }
+}
 
 extern "C" void kmain(uint32_t magic, multiboot_info* mb_info) {
     vga::clear();
     log_info("bmks: early boot initialized");
     
-    if (magic != 0x2BADB002) {
-        log_info("panic: invalid multiboot magic number");
-        return;
-    }
+    if (magic != 0x2BADB002) return;
     
     init_gdt();
     init_idt();
@@ -104,24 +125,13 @@ extern "C" void kmain(uint32_t magic, multiboot_info* mb_info) {
     init_paging();
     
     __asm__ __volatile__("sti");
-    log_info("cpu: hardware interrupts unmasked");
     
-    void* phys_block = pmm_alloc_block();
-    uint32_t virt_addr = 0x10000000;
+    log_info("scheduler: initializing tasks");
+    task_init(&tasks[0], task1);
+    task_init(&tasks[1], task2);
     
-    vmm_map_page((uint32_t)phys_block, virt_addr);
-    log_info("vmm: mapped 0x10000000 to physical block");
-    
-    uint32_t* test_ptr = (uint32_t*)virt_addr;
-    *test_ptr = 0xDEADBEEF;
-    
-    if (*test_ptr == 0xDEADBEEF) {
-        log_info("vmm: read/write test successful");
-    }
-
-    log_info("bmks: triggering deliberate page fault...");
-    uint32_t* bad_ptr = (uint32_t*)0x20000000;
-    *bad_ptr = 0xBAD; 
+    log_info("scheduler: starting multi-threading");
+    start_tasks();
     
     while (true) {
         __asm__ __volatile__("hlt");
