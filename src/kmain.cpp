@@ -7,6 +7,7 @@
 #include "ata.h"
 #include "mbr.h"
 #include "rtc.h"
+#include "acpi.h"
 
 extern volatile uint32_t timer_ticks;
 
@@ -148,6 +149,8 @@ extern "C" void kmain(uint32_t magic, multiboot_info* mb_info) {
         log_info("ata: disk not found or timeout");
     }
 
+
+    acpi_init();
     mbr_parse();
 
     log_info("boot: init complete. entering idle.");
