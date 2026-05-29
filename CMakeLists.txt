@@ -18,21 +18,13 @@ add_custom_command(
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/switch.asm
 )
 
+
+file(GLOB KERNEL_SOURCES "src/*.cpp")
+
 add_executable(bmks.bin 
     ${CMAKE_CURRENT_BINARY_DIR}/boot.o 
     ${CMAKE_CURRENT_BINARY_DIR}/switch.o
-    src/kmain.cpp 
-    src/gdt.cpp 
-    src/idt.cpp 
-    src/pic.cpp 
-    src/timer.cpp 
-    src/keyboard.cpp 
-    src/pmm.cpp 
-    src/paging.cpp 
-    src/vmm.cpp
-    src/heap.cpp
-    src/task.cpp
-    src/pci.cpp
+    ${KERNEL_SOURCES}
 )
 
 set_target_properties(bmks.bin PROPERTIES LINK_FLAGS "-m32 -nostdlib -no-pie -T ${CMAKE_SOURCE_DIR}/linker.ld")

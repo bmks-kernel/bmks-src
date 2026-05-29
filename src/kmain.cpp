@@ -4,6 +4,9 @@
 #include "paging.h"
 #include "heap.h"
 #include "pci.h"
+#include "ata.h"
+#include "mbr.h"
+#include "rtc.h"
 
 extern volatile uint32_t timer_ticks;
 
@@ -89,32 +92,66 @@ void vmm_map_page(uint32_t phys, uint32_t virt);
 
 extern "C" void kmain(uint32_t magic, multiboot_info* mb_info) {
     vga::clear();
+    log_info("boot: kernel started");
     
-    if (magic != 0x2BADB002) return;
+    if (magic != 0x2BADB002) {
+        log_info("panic: bad multiboot magic");
+        return;
+    }
     
     init_gdt();
+    log_info("cpu: GDT loaded");
+    
     init_idt();
+    log_info("cpu: IDT loaded");
+    
     pic_remap();
+    log_info("pic: 8259A remapped");
+    
     init_timer(100); 
+    log_info("timer: PIT set to 100Hz");
+
+    rtc_init();
     
     uint32_t total_memory_kb = mb_info->mem_lower + mb_info->mem_upper;
     pmm_init(total_memory_kb);
-    init_paging();
+    log_info("mem: PMM initialized");
     
+    init_paging();
+    log_info("mem: VMM enabled (8MB identity)");
+    
+    // Enable interrupts only after critical structures are loaded
     __asm__ __volatile__("sti");
+    log_info("cpu: interrupts unmasked");
 
+    // Initialize 16KB Kernel Heap at 0xC0000000
     uint32_t heap_virt = 0xC0000000;
     for (uint32_t i = 0; i < 4; i++) {
         void* phys = pmm_alloc_block();
         vmm_map_page((uint32_t)phys, heap_virt + (i * 4096));
     }
     heap_init(heap_virt, 4 * 4096);
+    log_info("mem: heap ready at 0xC0000000");
     
-    log_info("bmks: kernel foundation loaded");
-
-    // SCAN HARDWARE
+    log_info("pci: scanning bus...");
     pci_scan();
 
+    // Test ATA PIO Driver
+    uint8_t sector_buffer[512];
+    if (ata_read_sector(0, sector_buffer)) {
+        if (sector_buffer[510] == 0x55 && sector_buffer[511] == 0xAA) {
+            log_info("ata: successfully read MBR from disk (magic 0xAA55 found)");
+        } else {
+            log_info("ata: read sector 0 successfully, but disk is unformatted");
+        }
+    } else {
+        log_info("ata: disk not found or timeout");
+    }
+
+    mbr_parse();
+
+    log_info("boot: init complete. entering idle.");
+    
     while (true) {
         __asm__ __volatile__("hlt");
     }
