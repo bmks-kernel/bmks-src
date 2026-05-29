@@ -27,13 +27,13 @@ void pmm_init(uint32_t mem_size_kb) {
         memory_bitmap[i] = 0;
     }
 
-    // Reserve first 1MB for kernel code and hardware buffers (like VGA)
-    for (uint32_t i = 0; i < (1024 * 1024) / PAGE_SIZE; i++) {
+    
+    for (uint32_t i = 0; i < (4 * 1024 * 1024) / PAGE_SIZE; i++) {
         memory_bitmap[i / 8] |= (1 << (i % 8));
         used_blocks++;
     }
     
-    log_info("pmm: memory bitmap initialized");
+    log_info("pmm: memory bitmap initialized (4MB reserved)");
 }
 
 void* pmm_alloc_block() {
