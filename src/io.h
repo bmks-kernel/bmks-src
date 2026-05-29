@@ -11,6 +11,16 @@ static inline uint8_t inb(uint16_t port) {
     return ret;
 }
 
+static inline void outl(uint16_t port, uint32_t val) {
+    __asm__ __volatile__("outl %0, %1" : : "a"(val), "Nd"(port));
+}
+
+static inline uint32_t inl(uint16_t port) {
+    uint32_t ret;
+    __asm__ __volatile__("inl %1, %0" : "=a"(ret) : "Nd"(port));
+    return ret;
+}
+
 static inline void io_wait() {
     outb(0x80, 0);
 }

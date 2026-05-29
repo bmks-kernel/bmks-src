@@ -2,8 +2,8 @@
 #include <stddef.h>
 #include "multiboot.h"
 #include "paging.h"
-#include "task.h"
 #include "heap.h"
+#include "pci.h"
 
 extern volatile uint32_t timer_ticks;
 
@@ -103,33 +103,17 @@ extern "C" void kmain(uint32_t magic, multiboot_info* mb_info) {
     
     __asm__ __volatile__("sti");
 
-    // Setup Kernel Heap
     uint32_t heap_virt = 0xC0000000;
-    uint32_t heap_pages = 4; // 16 KB total
-    
-    for (uint32_t i = 0; i < heap_pages; i++) {
+    for (uint32_t i = 0; i < 4; i++) {
         void* phys = pmm_alloc_block();
         vmm_map_page((uint32_t)phys, heap_virt + (i * 4096));
     }
+    heap_init(heap_virt, 4 * 4096);
     
-    heap_init(heap_virt, heap_pages * 4096);
-    log_info("vmm: kernel heap initialized at 0xC0000000");
+    log_info("bmks: kernel foundation loaded");
 
-    // Test kmalloc
-    void* ptr1 = kmalloc(32);
-    void* ptr2 = kmalloc(128);
-    
-    if (ptr1 && ptr2) {
-        log_info("heap: kmalloc test passed");
-        vga::print("  ptr1 addr: "); vga::print_hex((uint32_t)ptr1); vga::print("\n");
-        vga::print("  ptr2 addr: "); vga::print_hex((uint32_t)ptr2); vga::print("\n");
-    }
-    
-    kfree(ptr1);
-    kfree(ptr2);
-    log_info("heap: kfree test passed, blocks merged");
-    
-    log_info("bmks: kernel initialized successfully");
+    // SCAN HARDWARE
+    pci_scan();
 
     while (true) {
         __asm__ __volatile__("hlt");
