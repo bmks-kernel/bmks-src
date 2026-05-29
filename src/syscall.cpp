@@ -11,6 +11,8 @@ namespace vga {
 #define MAX_SYSCALLS 3
 
 extern "C" uint32_t syscall_handler(uint32_t syscall_num, uint32_t arg1, uint32_t arg2, uint32_t arg3) {
+    (void)arg3; // Silence unused parameter warning
+
     if (syscall_num >= MAX_SYSCALLS) {
         log_info("syscall: invalid system call number requested");
         return (uint32_t)-1;

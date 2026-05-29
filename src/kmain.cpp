@@ -4,7 +4,6 @@
 #include "paging.h"
 #include "heap.h"
 #include "pci.h"
-#include "ata.h"
 #include "mbr.h"
 #include "rtc.h"
 #include "acpi.h"
@@ -25,6 +24,21 @@ namespace vga {
         cursor = 0;
     }
 
+    void scroll() {
+        if (cursor >= VGA_WIDTH * VGA_HEIGHT) {
+            // Сдвигаем все строки на одну вверх
+            for (size_t i = 0; i < VGA_WIDTH * (VGA_HEIGHT - 1); i++) {
+                buffer[i] = buffer[i + VGA_WIDTH];
+            }
+            // Очищаем самую нижнюю строку
+            for (size_t i = VGA_WIDTH * (VGA_HEIGHT - 1); i < VGA_WIDTH * VGA_HEIGHT; i++) {
+                buffer[i] = (uint16_t)' ' | (7 << 8);
+            }
+            // Возвращаем курсор в начало последней строки
+            cursor = VGA_WIDTH * (VGA_HEIGHT - 1);
+        }
+    }
+
     void print_char(char c) {
         if (c == '\n') {
             cursor = (cursor / VGA_WIDTH + 1) * VGA_WIDTH;
@@ -36,6 +50,8 @@ namespace vga {
         } else {
             buffer[cursor++] = (uint16_t)c | (7 << 8);
         }
+        // Вызываем проверку на скролл после каждого символа
+        scroll();
     }
 
     void print(const char* str) {
@@ -92,6 +108,12 @@ void pmm_init(uint32_t mem_size_kb);
 void* pmm_alloc_block();
 void vmm_map_page(uint32_t phys, uint32_t virt);
 
+extern "C" void jump_to_usermode();
+void tss_set_stack(uint32_t kstack);
+
+// DEDICATED KERNEL STACK FOR RING 0 INTERRUPTS
+uint8_t kernel_tss_stack[8192];
+
 extern "C" void kmain(uint32_t magic, multiboot_info* mb_info) {
     vga::clear();
     log_info("boot: kernel started");
@@ -112,8 +134,6 @@ extern "C" void kmain(uint32_t magic, multiboot_info* mb_info) {
     
     init_timer(100); 
     log_info("timer: PIT set to 100Hz");
-
-    rtc_init();
     
     uint32_t total_memory_kb = mb_info->mem_lower + mb_info->mem_upper;
     pmm_init(total_memory_kb);
@@ -122,11 +142,9 @@ extern "C" void kmain(uint32_t magic, multiboot_info* mb_info) {
     init_paging();
     log_info("mem: VMM enabled (8MB identity)");
     
-    // Enable interrupts only after critical structures are loaded
     __asm__ __volatile__("sti");
     log_info("cpu: interrupts unmasked");
 
-    // Initialize 16KB Kernel Heap at 0xC0000000
     uint32_t heap_virt = 0xC0000000;
     for (uint32_t i = 0; i < 4; i++) {
         void* phys = pmm_alloc_block();
@@ -137,49 +155,40 @@ extern "C" void kmain(uint32_t magic, multiboot_info* mb_info) {
     
     log_info("pci: scanning bus...");
     pci_scan();
-
-    // Test ATA PIO Driver
-    uint8_t sector_buffer[512];
-    if (ata_read_sector(0, sector_buffer)) {
-        if (sector_buffer[510] == 0x55 && sector_buffer[511] == 0xAA) {
-            log_info("ata: successfully read MBR from disk (magic 0xAA55 found)");
-        } else {
-            log_info("ata: read sector 0 successfully, but disk is unformatted");
-        }
-    } else {
-        log_info("ata: disk not found or timeout");
-    }
-
-
+    rtc_init();
     acpi_init();
     syscall_init();
+    mbr_parse();
 
-    // TEST SYSCALL 1 (Print text)
-    const char* sys_msg = "  --> [SYSCALL] Hello from user-space simulation!\n";
+    // CRITICAL FIX: Give the TSS a completely isolated stack!
+    // If we use current_esp, timer interrupts will overwrite Ring 3 stack.
+    tss_set_stack((uint32_t)kernel_tss_stack + sizeof(kernel_tss_stack));
+
+    log_info("cpu: dropping privileges to Ring 3 (User Mode)...");
+    
+    jump_to_usermode();
+
+    // --- EXECUTION IS NOW IN RING 3 (USER MODE) ---
+    const char* sys_msg = "  --> [RING-3 SYSCALL] Hello from real User Space!\n";
     __asm__ __volatile__(
         "int $0x80"
         : 
         : "a" (1), "b" ((uint32_t)sys_msg), "c" (0), "d" (0)
     );
 
-    // TEST SYSCALL 2 (Addition)
     uint32_t sum_result;
     __asm__ __volatile__(
         "int $0x80"
         : "=a" (sum_result)
-        : "a" (2), "b" (40), "c" (2), "d" (0)
+        : "a" (2), "b" (100), "c" (50), "d" (0)
     );
     
-    vga::print("  --> [SYSCALL] Result of 40 + 2 = ");
+    vga::print("  --> [RING-3 SYSCALL] 100 + 50 = ");
     vga::print_num(sum_result);
     vga::print("\n");
+    vga::print("Press 's' to shutdown via ACPI.\n");
 
-    mbr_parse();
-
-    
-    log_info("boot: init complete. entering idle.");
-    
     while (true) {
-        __asm__ __volatile__("hlt");
+        // Just spin. 'hlt' causes #GP exception in Ring 3
     }
 }
