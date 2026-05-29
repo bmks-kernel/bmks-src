@@ -31,6 +31,7 @@ add_executable(bmks.bin
     src/paging.cpp 
     src/vmm.cpp
     src/task.cpp
+    src/heap.cpp
 )
 
 set_target_properties(bmks.bin PROPERTIES LINK_FLAGS "-m32 -nostdlib -no-pie -T ${CMAKE_SOURCE_DIR}/linker.ld")

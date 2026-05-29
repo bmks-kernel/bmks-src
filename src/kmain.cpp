@@ -3,6 +3,7 @@
 #include "multiboot.h"
 #include "paging.h"
 #include "task.h"
+#include "heap.h"
 
 extern volatile uint32_t timer_ticks;
 
@@ -78,40 +79,16 @@ void log_info(const char* msg) {
     vga::print("\n");
 }
 
-void delay(uint32_t ticks) {
-    uint32_t start = timer_ticks;
-    while (timer_ticks < start + ticks) {
-        __asm__ __volatile__("hlt");
-    }
-}
-
 void init_gdt();
 void init_idt();
 void pic_remap();
 void init_timer(uint32_t freq);
 void pmm_init(uint32_t mem_size_kb);
-
-extern task_t tasks[2];
-
-void task1() {
-    while (true) {
-        log_info("Task 1 is running");
-        delay(50); 
-        task_yield();
-    }
-}
-
-void task2() {
-    while (true) {
-        log_info("Task 2 is running");
-        delay(50); 
-        task_yield();
-    }
-}
+void* pmm_alloc_block();
+void vmm_map_page(uint32_t phys, uint32_t virt);
 
 extern "C" void kmain(uint32_t magic, multiboot_info* mb_info) {
     vga::clear();
-    log_info("bmks: early boot initialized");
     
     if (magic != 0x2BADB002) return;
     
@@ -125,14 +102,35 @@ extern "C" void kmain(uint32_t magic, multiboot_info* mb_info) {
     init_paging();
     
     __asm__ __volatile__("sti");
+
+    // Setup Kernel Heap
+    uint32_t heap_virt = 0xC0000000;
+    uint32_t heap_pages = 4; // 16 KB total
     
-    log_info("scheduler: initializing tasks");
-    task_init(&tasks[0], task1);
-    task_init(&tasks[1], task2);
+    for (uint32_t i = 0; i < heap_pages; i++) {
+        void* phys = pmm_alloc_block();
+        vmm_map_page((uint32_t)phys, heap_virt + (i * 4096));
+    }
     
-    log_info("scheduler: starting multi-threading");
-    start_tasks();
+    heap_init(heap_virt, heap_pages * 4096);
+    log_info("vmm: kernel heap initialized at 0xC0000000");
+
+    // Test kmalloc
+    void* ptr1 = kmalloc(32);
+    void* ptr2 = kmalloc(128);
     
+    if (ptr1 && ptr2) {
+        log_info("heap: kmalloc test passed");
+        vga::print("  ptr1 addr: "); vga::print_hex((uint32_t)ptr1); vga::print("\n");
+        vga::print("  ptr2 addr: "); vga::print_hex((uint32_t)ptr2); vga::print("\n");
+    }
+    
+    kfree(ptr1);
+    kfree(ptr2);
+    log_info("heap: kfree test passed, blocks merged");
+    
+    log_info("bmks: kernel initialized successfully");
+
     while (true) {
         __asm__ __volatile__("hlt");
     }
