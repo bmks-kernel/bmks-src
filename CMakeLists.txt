@@ -19,11 +19,18 @@ add_custom_command(
 )
 
 
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/syscall_stub.o
+    COMMAND nasm -f elf32 ${CMAKE_CURRENT_SOURCE_DIR}/src/syscall_stub.asm -o ${CMAKE_CURRENT_BINARY_DIR}/syscall_stub.o
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/syscall_stub.asm
+)
+
 file(GLOB KERNEL_SOURCES "src/*.cpp")
 
 add_executable(bmks.bin 
     ${CMAKE_CURRENT_BINARY_DIR}/boot.o 
     ${CMAKE_CURRENT_BINARY_DIR}/switch.o
+    ${CMAKE_CURRENT_BINARY_DIR}/syscall_stub.o
     ${KERNEL_SOURCES}
 )
 

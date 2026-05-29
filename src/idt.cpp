@@ -5,6 +5,7 @@ extern "C" void default_isr_stub();
 extern "C" void irq0_stub();
 extern "C" void irq1_stub();
 extern "C" void page_fault_stub();
+extern "C" void syscall_stub();
 
 namespace vga {
     extern void print(const char* str);
@@ -65,6 +66,9 @@ void init_idt() {
     idt_set_descriptor(14, (void*)page_fault_stub, 0x8E);
     idt_set_descriptor(0x20, (void*)irq0_stub, 0x8E);
     idt_set_descriptor(0x21, (void*)irq1_stub, 0x8E);
+    
+    
+    idt_set_descriptor(0x80, (void*)syscall_stub, 0xEE); 
 
     __asm__ __volatile__("lidt %0" : : "m"(idtr_reg));
 }

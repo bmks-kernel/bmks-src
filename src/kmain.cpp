@@ -8,6 +8,7 @@
 #include "mbr.h"
 #include "rtc.h"
 #include "acpi.h"
+#include "syscall.h"
 
 extern volatile uint32_t timer_ticks;
 
@@ -151,8 +152,31 @@ extern "C" void kmain(uint32_t magic, multiboot_info* mb_info) {
 
 
     acpi_init();
+    syscall_init();
+
+    // TEST SYSCALL 1 (Print text)
+    const char* sys_msg = "  --> [SYSCALL] Hello from user-space simulation!\n";
+    __asm__ __volatile__(
+        "int $0x80"
+        : 
+        : "a" (1), "b" ((uint32_t)sys_msg), "c" (0), "d" (0)
+    );
+
+    // TEST SYSCALL 2 (Addition)
+    uint32_t sum_result;
+    __asm__ __volatile__(
+        "int $0x80"
+        : "=a" (sum_result)
+        : "a" (2), "b" (40), "c" (2), "d" (0)
+    );
+    
+    vga::print("  --> [SYSCALL] Result of 40 + 2 = ");
+    vga::print_num(sum_result);
+    vga::print("\n");
+
     mbr_parse();
 
+    
     log_info("boot: init complete. entering idle.");
     
     while (true) {
